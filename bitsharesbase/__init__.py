@@ -13,3 +13,4 @@ __all__ = [
 ]
 
 base58.known_prefixes.append("KRM")
+

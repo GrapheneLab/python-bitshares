@@ -1,4 +1,5 @@
 from .bitshares import BitShares
+from graphenebase import base58
 
 __all__ = [
     "bitshares"
@@ -18,3 +19,5 @@ __all__ = [
     "vesting",
     "proposal"
 ]
+
+base58.known_prefixes.append("PPY")
