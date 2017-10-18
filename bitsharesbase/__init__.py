@@ -1,3 +1,4 @@
+from graphenebase import base58
 __all__ = [
     'account',
     'bip38',
@@ -11,3 +12,4 @@ __all__ = [
     'transactions',
 ]
 
+base58.known_prefixes.append("KRM")
