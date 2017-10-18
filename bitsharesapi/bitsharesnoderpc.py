@@ -86,7 +86,9 @@ class BitSharesNodeRPC(GrapheneWebsocketRPC):
         """
         props = self.get_chain_properties()
         chain_id = props["chain_id"]
+        print 'Chain', chain_id
         for k, v in known_chains.items():
             if v["chain_id"] == chain_id:
+                print 'Test', v['chain_id']
                 return v
         raise("Connecting to unknown network!")
