@@ -1,6 +1,6 @@
 known_chains = {
     "KRM": {
-        "chain_id": "720a2b60a603f58027e86321d750a0b1d5f635cdbbb2eef710a39e45d7a1be35",
+        "chain_id": "3d3533153f7d8c19e3b3830de96716984d31275e776e8c07cfa61b56b616b38c",
         "core_symbol": "KRM",
         "prefix": "KRM"},
     "BTS": {
