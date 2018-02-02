@@ -12,6 +12,5 @@ __all__ = [
     'transactions',
 ]
 
-base58.known_prefixes.append("KRM")
 base58.known_prefixes.append("KRMT")
 
