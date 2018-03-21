@@ -4,7 +4,7 @@ known_chains = {
         "core_symbol": "KRM",
         "prefix": "KRM"},
     "KRMT": {
-        "chain_id": "7bb688bfbb907755a4bd61c8ebc7d4bbf37a0295c4df0da3e7c5f9f9d0341276",
+        "chain_id": "e81bea67cebfe8612010fc7c26702bce10dc53f05c57ee6d5b720bbe62e51bef",
         "core_symbol": "KRMT",
         "prefix": "KRMT"},
     "BTS": {
