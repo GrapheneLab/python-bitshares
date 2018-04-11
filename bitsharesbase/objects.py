@@ -193,6 +193,9 @@ class AccountOptions(GrapheneObject):
 
 class AccountExtensions(GrapheneObject):
     def __init__(self, *args, **kwargs):
+        # Allow for overwrite of prefix
+        prefix = kwargs.pop("prefix", default_prefix)
+
         if isArgsThisClass(self, args):
                 self.data = args[0].data
         else:
