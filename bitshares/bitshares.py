@@ -314,7 +314,7 @@ class BitShares(object):
 
         referrer = Account(referrer, bitshares_instance=self)
         registrar = Account(registrar, bitshares_instance=self)
-        credit_referrer = Account(creadit_referrer, bitshares_instance=self)
+        credit_referrer = Account(credit_referrer, bitshares_instance=self)
 
         " Generate new keys from password"
         from bitsharesbase.account import PasswordKey, PublicKey
