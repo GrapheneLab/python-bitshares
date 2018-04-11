@@ -387,7 +387,7 @@ class BitShares(object):
                         "votes": [],
                         "extensions": []
                         },
-            "extensions": {"credit_referrer": creadit_referrer["id"]},
+            "extensions": {"credit_referrer": credit_referrer["id"]},
             "prefix": self.rpc.chain_params["prefix"]
         }
         op = operations.Account_create(**op)
