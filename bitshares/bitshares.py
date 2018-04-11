@@ -242,6 +242,7 @@ class BitShares(object):
         account_name,
         registrar=None,
         referrer="1.2.35641",
+        credit_referrer="1.2.21",
         referrer_percent=50,
         owner_key=None,
         active_key=None,
@@ -313,6 +314,7 @@ class BitShares(object):
 
         referrer = Account(referrer, bitshares_instance=self)
         registrar = Account(registrar, bitshares_instance=self)
+        credit_referrer = Account(creadit_referrer, bitshares_instance=self)
 
         " Generate new keys from password"
         from bitsharesbase.account import PasswordKey, PublicKey
@@ -385,7 +387,7 @@ class BitShares(object):
                         "votes": [],
                         "extensions": []
                         },
-            "extensions": {},
+            "extensions": {"credit_referrer": creadit_referrer["id"]},
             "prefix": self.rpc.chain_params["prefix"]
         }
         op = operations.Account_create(**op)

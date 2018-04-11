@@ -18,6 +18,7 @@ from .objects import (
     PriceFeed,
     Permission,
     AccountOptions,
+    AccountExtensions,
     AssetOptions,
     ObjectId,
     Worker_initializer,
@@ -271,7 +272,7 @@ class Account_create(GrapheneObject):
                 ('owner', Permission(kwargs["owner"], prefix=prefix)),
                 ('active', Permission(kwargs["active"], prefix=prefix)),
                 ('options', AccountOptions(kwargs["options"], prefix=prefix)),
-                ('extensions', Set([])),
+                ('extensions', AccountExtensions(kwargs["extensions"], prefix=prefix))
             ]))
 
 
