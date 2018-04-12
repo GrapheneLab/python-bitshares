@@ -342,7 +342,8 @@ class AccountCreateExtensions(Extension):
             "null_ext",
             "owner_special_authority",
             "active_special_authority",
-            "buyback_options"
+            "buyback_options",
+            "credit_referrer"
         ]
         sorting = sorted(kwargs.items(), key=lambda x: sorted_options.index(x[0]))
         for key, value in sorting:
@@ -365,6 +366,11 @@ class AccountCreateExtensions(Extension):
             elif key == "buyback_options":
                 a.append(Static_variant(
                     Buyback_options(value),
+                    sorted_options.index(key))
+                )
+            elif key == "credit_referrer":
+                a.append(Static_variant(
+                    ObjectId(value, "account"),
                     sorted_options.index(key))
                 )
             else:
