@@ -1,13 +1,12 @@
 from bitshares.instance import shared_bitshares_instance
 from datetime import datetime, timedelta
-from .utils import formatTimeFromNow, formatTime, formatTimeString
+from .utils import (
+    formatTimeFromNow, formatTime, formatTimeString, assets_from_string)
 from .asset import Asset
 from .amount import Amount
 from .price import Price, Order, FilledOrder
 from .account import Account
-from .blockchain import Blockchain
 from bitsharesbase import operations
-from bitsharesbase.objects import Operation
 
 
 class Market(dict):
@@ -40,7 +39,6 @@ class Market(dict):
                   quote** and obtain/pay **only base**.
 
     """
-    market_sep_regex = "[/\-:]"
 
     def __init__(
         self,
@@ -53,18 +51,16 @@ class Market(dict):
         self.bitshares = bitshares_instance or shared_bitshares_instance()
 
         if len(args) == 1 and isinstance(args[0], str):
-            quote_symbol, base_symbol = self._get_assets_from_string(args[0])
+            quote_symbol, base_symbol = assets_from_string(args[0])
             quote = Asset(quote_symbol, bitshares_instance=self.bitshares)
             base = Asset(base_symbol, bitshares_instance=self.bitshares)
             super(Market, self).__init__({"base": base, "quote": quote})
         elif len(args) == 0 and base and quote:
             super(Market, self).__init__({"base": base, "quote": quote})
+        elif len(args) == 2 and not base and not quote:
+            super(Market, self).__init__({"base": args[1], "quote": args[0]})
         else:
             raise ValueError("Unknown Market Format: %s" % str(args))
-
-    def _get_assets_from_string(self, s):
-        import re
-        return re.split(self.market_sep_regex, s)
 
     def get_string(self, separator=":"):
         """ Return a formated string that identifies the market, e.g. ``USD:BTS``
@@ -75,7 +71,7 @@ class Market(dict):
 
     def __eq__(self, other):
         if isinstance(other, str):
-            quote_symbol, base_symbol = self._get_assets_from_string(other)
+            quote_symbol, base_symbol = assets_from_string(other)
             return (
                 self["quote"]["symbol"] == quote_symbol and
                 self["base"]["symbol"] == base_symbol
@@ -237,13 +233,15 @@ class Market(dict):
             limit
         )
         asks = list(map(lambda x: Order(
-            Amount(x["quote"], self["quote"], bitshares_instance=self.bitshares),
-            Amount(x["base"], self["base"], bitshares_instance=self.bitshares),
+            float(x["price"]),
+            quote=Amount(x["quote"], self["quote"], bitshares_instance=self.bitshares),
+            base=Amount(x["base"], self["base"], bitshares_instance=self.bitshares),
             bitshares_instance=self.bitshares
         ), orders["asks"]))
         bids = list(map(lambda x: Order(
-            Amount(x["quote"], self["quote"], bitshares_instance=self.bitshares),
-            Amount(x["base"], self["base"], bitshares_instance=self.bitshares),
+            float(x["price"]),
+            quote=Amount(x["quote"], self["quote"], bitshares_instance=self.bitshares),
+            base=Amount(x["base"], self["base"], bitshares_instance=self.bitshares),
             bitshares_instance=self.bitshares
         ), orders["bids"]))
         data = {"asks": asks, "bids": bids}
@@ -403,23 +401,15 @@ class Market(dict):
         if not account:
             raise ValueError("You need to provide an account")
         account = Account(account, bitshares_instance=self.bitshares)
+
         if isinstance(price, Price):
-            if (
-                price["quote"]["symbol"] == self["quote"]["symbol"] and
-                price["base"]["symbol"] == self["base"]["symbol"]
-            ):
-                pass
-            elif (
-                price["base"]["symbol"] == self["quote"]["symbol"] and
-                price["quote"]["symbol"] == self["base"]["symbol"]
-            ):
-                price = price.invert()
-            else:
-                raise ValueError("The assets in the price do not match the market!")
+            price = price.as_base(self["base"]["symbol"])
 
         if isinstance(amount, Amount):
             amount = Amount(amount, bitshares_instance=self.bitshares)
-            assert(amount["asset"]["symbol"] == self["quote"]["symbol"])
+            assert(amount["asset"]["symbol"] == self["quote"]["symbol"]), \
+                "Price: {} does not match amount: {}".format(
+                    str(price), str(amount))
         else:
             amount = Amount(amount, self["quote"]["symbol"], bitshares_instance=self.bitshares)
 
@@ -491,22 +481,13 @@ class Market(dict):
             raise ValueError("You need to provide an account")
         account = Account(account, bitshares_instance=self.bitshares)
         if isinstance(price, Price):
-            if (
-                price["quote"]["symbol"] == self["quote"]["symbol"] and
-                price["base"]["symbol"] == self["base"]["symbol"]
-            ):
-                pass
-            elif (
-                price["base"]["symbol"] == self["quote"]["symbol"] and
-                price["quote"]["symbol"] == self["base"]["symbol"]
-            ):
-                price = price.invert()
-            else:
-                raise ValueError("The assets in the price do not match the market!")
+            price = price.as_base(self["base"]["symbol"])
 
         if isinstance(amount, Amount):
             amount = Amount(amount, bitshares_instance=self.bitshares)
-            assert(amount["asset"]["symbol"] == self["quote"]["symbol"])
+            assert(amount["asset"]["symbol"] == self["quote"]["symbol"]), \
+                "Price: {} does not match amount: {}".format(
+                    str(price), str(amount))
         else:
             amount = Amount(amount, self["quote"]["symbol"], bitshares_instance=self.bitshares)
 
@@ -535,6 +516,8 @@ class Market(dict):
             tx["orderid"] = tx["operation_results"][0][1]
             self.bitshares.blocking = prevblocking
 
+        return tx
+
     def cancel(self, orderNumber, account=None):
         """ Cancels an order you have placed in a given market. Requires
             only the "orderNumber". An order number takes the form
@@ -553,7 +536,10 @@ class Market(dict):
             raise ValueError("Quote (%s) is not a bitasset!" % self["quote"]["symbol"])
         self["quote"].full = True
         self["quote"].refresh()
-        collateral = Asset(self["quote"]["bitasset_data"]["options"]["short_backing_asset"])
+        collateral = Asset(
+            self["quote"]["bitasset_data"]["options"]["short_backing_asset"],
+            bitshares_instance=self.bitshares
+        )
         return Market(quote=self["quote"], base=collateral)
 
     def core_base_market(self):
@@ -565,5 +551,8 @@ class Market(dict):
             raise ValueError("base (%s) is not a bitasset!" % self["base"]["symbol"])
         self["base"].full = True
         self["base"].refresh()
-        collateral = Asset(self["base"]["bitasset_data"]["options"]["short_backing_asset"])
+        collateral = Asset(
+            self["base"]["bitasset_data"]["options"]["short_backing_asset"],
+            bitshares_instance=self.bitshares
+        )
         return Market(quote=self["base"], base=collateral)

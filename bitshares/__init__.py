@@ -17,7 +17,8 @@ __all__ = [
     "wallet",
     "committee",
     "vesting",
-    "proposal"
+    "proposal",
+    "message"
 ]
 
 base58.known_prefixes.append("PPY")

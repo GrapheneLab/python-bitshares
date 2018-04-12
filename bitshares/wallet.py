@@ -1,16 +1,20 @@
 import logging
 import os
-
 from graphenebase import bip38
 from bitsharesbase.account import PrivateKey, GPHPrivateKey
-
+from bitshares.instance import shared_bitshares_instance
 from .account import Account
 from .exceptions import (
+    KeyNotFound,
     InvalidWifError,
     WalletExists,
+    WalletLocked,
     WrongMasterPasswordException,
-    NoWalletException
+    NoWalletException,
+    OfflineHasNoRPCException
 )
+from .storage import configStorage as config
+
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +25,8 @@ class Wallet():
         or uses a SQLite database managed by storage.py.
 
         :param BitSharesNodeRPC rpc: RPC connection to a BitShares node
-        :param array,dict,string keys: Predefine the wif keys to shortcut the wallet database
+        :param array,dict,string keys: Predefine the wif keys to shortcut the
+               wallet database
 
         Three wallet operation modes are possible:
 
@@ -53,19 +58,8 @@ class Wallet():
     keys = {}  # struct with pubkey as key and wif as value
     keyMap = {}  # type:wif pairs to force certain keys
 
-    def __init__(self, rpc, *args, **kwargs):
-        from .storage import configStorage
-        self.configStorage = configStorage
-
-        # RPC
-        Wallet.rpc = rpc
-
-        # Prefix?
-        if Wallet.rpc:
-            self.prefix = Wallet.rpc.chain_params["prefix"]
-        else:
-            # If not connected, load prefix from config
-            self.prefix = self.configStorage["prefix"]
+    def __init__(self, *args, bitshares_instance=None, **kwargs):
+        self.bitshares = bitshares_instance or shared_bitshares_instance()
 
         # Compatibility after name change from wif->keys
         if "wif" in kwargs and "keys" not in kwargs:
@@ -82,11 +76,27 @@ class Wallet():
             self.MasterPassword = MasterPassword
             self.keyStorage = keyStorage
 
+    @property
+    def prefix(self):
+        if self.bitshares.is_connected():
+            prefix = self.bitshares.prefix
+        else:
+            # If not connected, load prefix from config
+            prefix = config["prefix"]
+        return prefix or "BTS"   # default prefix is BTS
+
+    @property
+    def rpc(self):
+        if not self.bitshares.is_connected():
+            raise OfflineHasNoRPCException("No RPC available in offline mode!")
+        return self.bitshares.rpc
+
     def setKeys(self, loadkeys):
         """ This method is strictly only for in memory keys that are
             passed to Wallet/BitShares with the ``keys`` argument
         """
-        log.debug("Force setting of private keys. Not using the wallet database!")
+        log.debug(
+            "Force setting of private keys. Not using the wallet database!")
         if isinstance(loadkeys, dict):
             Wallet.keyMap = loadkeys
             loadkeys = list(loadkeys.values())
@@ -94,11 +104,8 @@ class Wallet():
             loadkeys = [loadkeys]
 
         for wif in loadkeys:
-            try:
-                key = PrivateKey(wif)
-            except:
-                raise InvalidWifError
-            Wallet.keys[format(key.pubkey, self.prefix)] = str(key)
+            pub = self._get_pub_from_wif(wif)
+            Wallet.keys[pub] = str(wif)
 
     def unlock(self, pwd=None):
         """ Unlock the wallet database
@@ -110,7 +117,7 @@ class Wallet():
             self.tryUnlockFromEnv()
         else:
             if (self.masterpassword is None and
-                    self.configStorage[self.MasterPassword.config_key]):
+                    config[self.MasterPassword.config_key]):
                 self.masterpwd = self.MasterPassword(pwd)
                 self.masterpassword = self.masterpwd.decrypted_master
 
@@ -126,9 +133,16 @@ class Wallet():
         """
         self.masterpassword = None
 
+    def unlocked(self):
+        """ Is the wallet database unlocked?
+        """
+        return not self.locked()
+
     def locked(self):
         """ Is the wallet database locked?
         """
+        if Wallet.keys:  # Keys have been manually provided!
+            return False
         try:
             self.tryUnlockFromEnv()
         except:
@@ -147,7 +161,7 @@ class Wallet():
         if len(self.getPublicKeys()):
             # Already keys installed
             return True
-        elif self.MasterPassword.config_key in self.configStorage:
+        elif self.MasterPassword.config_key in config:
             # no keys but a master password
             return True
         else:
@@ -165,12 +179,14 @@ class Wallet():
             raise WalletExists("You already have created a wallet!")
         self.masterpwd = self.MasterPassword(pwd)
         self.masterpassword = self.masterpwd.decrypted_master
+        self.masterpwd.saveEncrytpedMaster()
 
     def encrypt_wif(self, wif):
         """ Encrypt a wif key
         """
         assert not self.locked()
-        return format(bip38.encrypt(PrivateKey(wif), self.masterpassword), "encwif")
+        return format(
+            bip38.encrypt(PrivateKey(wif), self.masterpassword), "encwif")
 
     def decrypt_wif(self, encwif):
         """ decrypt a wif key
@@ -184,16 +200,23 @@ class Wallet():
         assert not self.locked()
         return format(bip38.decrypt(encwif, self.masterpassword), "wif")
 
-    def addPrivateKey(self, wif):
-        """ Add a private key to the wallet database
+    def _get_pub_from_wif(self, wif):
+        """ Get the pubkey as string, from the wif key as string
         """
-        # it could be either graphenebase or bitsharesbase so we can't check the type directly
+        # it could be either graphenebase or bitsharesbase so we can't check
+        # the type directly
         if isinstance(wif, PrivateKey) or isinstance(wif, GPHPrivateKey):
             wif = str(wif)
         try:
-            pub = format(PrivateKey(wif).pubkey, self.prefix)
+            return format(PrivateKey(wif).pubkey, self.prefix)
         except:
-            raise InvalidWifError("Invalid Private Key Format. Please use WIF!")
+            raise InvalidWifError(
+                "Invalid Private Key Format. Please use WIF!")
+
+    def addPrivateKey(self, wif):
+        """ Add a private key to the wallet database
+        """
+        pub = self._get_pub_from_wif(wif)
 
         if self.keyStorage:
             # Test if wallet exists
@@ -219,7 +242,13 @@ class Wallet():
             if not self.created():
                 raise NoWalletException
 
-            return self.decrypt_wif(self.keyStorage.getPrivateKeyForPublicKey(pub))
+            if not self.unlocked():
+                raise WalletLocked
+
+            encwif = self.keyStorage.getPrivateKeyForPublicKey(pub)
+            if not encwif:
+                raise KeyNotFound("No private key for {} found".format(pub))
+            return self.decrypt_wif(encwif)
 
     def removePrivateKeyFromPublicKey(self, pub):
         """ Remove a key from the wallet database
@@ -262,7 +291,8 @@ class Wallet():
             account = self.rpc.get_account(name)
             if not account:
                 return
-            key = self.getPrivateKeyForPublicKey(account["options"]["memo_key"])
+            key = self.getPrivateKeyForPublicKey(
+                account["options"]["memo_key"])
             if key:
                 return key
             return False
@@ -285,11 +315,19 @@ class Wallet():
     def getAccountFromPrivateKey(self, wif):
         """ Obtain account name from private key
         """
-        pub = format(PrivateKey(wif).pubkey, self.prefix)
+        pub = self._get_pub_from_wif(wif)
         return self.getAccountFromPublicKey(pub)
 
+    def getAccountsFromPublicKey(self, pub):
+        """ Obtain all accounts associated with a public key
+        """
+        names = self.rpc.get_key_references([pub])
+        for name in names:
+            for i in name:
+                yield i
+
     def getAccountFromPublicKey(self, pub):
-        """ Obtain account name from public key
+        """ Obtain the first account name from public key
         """
         # FIXME, this only returns the first associated key.
         # If the key is used by multiple accounts, this
@@ -300,26 +338,36 @@ class Wallet():
         else:
             return names[0]
 
+    def getAllAccounts(self, pub):
+        """ Get the account data for a public key (all accounts found for this
+            public key)
+        """
+        for id in self.getAccountsFromPublicKey(pub):
+            try:
+                account = Account(id, bitshares_instance=self.bitshares)
+            except:
+                continue
+            yield {"name": account["name"],
+                   "account": account,
+                   "type": self.getKeyType(account, pub),
+                   "pubkey": pub}
+
     def getAccount(self, pub):
-        """ Get the account data for a public key
+        """ Get the account data for a public key (first account found for this
+            public key)
         """
         name = self.getAccountFromPublicKey(pub)
         if not name:
-            return {"name": None,
-                    "type": None,
-                    "pubkey": pub
-                    }
+            return {"name": None, "type": None, "pubkey": pub}
         else:
             try:
-                account = Account(name)
+                account = Account(name, bitshares_instance=self.bitshares)
             except:
                 return
-            keyType = self.getKeyType(account, pub)
             return {"name": account["name"],
                     "account": account,
-                    "type": keyType,
-                    "pubkey": pub
-                    }
+                    "type": self.getKeyType(account, pub),
+                    "pubkey": pub}
 
     def getKeyType(self, account, pub):
         """ Get key type
@@ -340,7 +388,7 @@ class Wallet():
         for pubkey in pubkeys:
             # Filter those keys not for our network
             if pubkey[:len(self.prefix)] == self.prefix:
-                accounts.append(self.getAccount(pubkey))
+                accounts.extend(self.getAllAccounts(pubkey))
         return accounts
 
     def getPublicKeys(self):
@@ -350,3 +398,19 @@ class Wallet():
             return self.keyStorage.getPublicKeys()
         else:
             return list(Wallet.keys.keys())
+
+    def wipe(self, sure=False):
+        if not sure:
+            log.error(
+                "You need to confirm that you are sure "
+                "and understand the implications of "
+                "wiping your wallet!"
+            )
+            return
+        else:
+            from .storage import (
+                keyStorage,
+                MasterPassword
+            )
+            MasterPassword.wipe(sure)
+            keyStorage.wipe(sure)

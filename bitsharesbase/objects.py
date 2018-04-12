@@ -9,12 +9,19 @@ from graphenebase.types import (
     ObjectId as GPHObjectId
 )
 from graphenebase.objects import GrapheneObject, isArgsThisClass
-from .chains import known_chains
 from .objecttypes import object_type
 from .account import PublicKey
 from graphenebase.objects import Operation as GPHOperation
 from .operationids import operations
 default_prefix = "KRM"
+
+
+def AssetId(asset):
+    return ObjectId(asset, "asset")
+
+
+def AccountId(asset):
+    return ObjectId(asset, "account")
 
 
 class ObjectId(GPHObjectId):
@@ -80,20 +87,8 @@ class Memo(GrapheneObject):
         else:
             if len(args) == 1 and len(kwargs) == 0:
                 kwargs = args[0]
+            prefix = kwargs.pop("prefix", default_prefix)
             if "message" in kwargs and kwargs["message"]:
-                if "chain" not in kwargs:
-                    chain = default_prefix
-                else:
-                    chain = kwargs["chain"]
-                if isinstance(chain, str) and chain in known_chains:
-                    chain_params = known_chains[chain]
-                elif isinstance(chain, dict):
-                    chain_params = chain
-                else:
-                    raise Exception("Memo() only takes a string or a dict as chain!")
-                if "prefix" not in chain_params:
-                    raise Exception("Memo() needs a 'prefix' in chain params!")
-                prefix = chain_params["prefix"]
                 super().__init__(OrderedDict([
                     ('from', PublicKey(kwargs["from"], prefix=prefix)),
                     ('to', PublicKey(kwargs["to"], prefix=prefix)),
@@ -199,63 +194,67 @@ class AssetOptions(GrapheneObject):
         else:
             if len(args) == 1 and len(kwargs) == 0:
                 kwargs = args[0]
-
-            # Sorting
-            for key in [
-                "whitelist_authorities",
-                "blacklist_authorities",
-                "whitelist_markets",
-                "blacklist_markets"
-            ]:
-                kwargs[key] = sorted(
-                    set(kwargs[key]),
-                    key=lambda x: int(x.split(".")[2]),
-                )
-
             super().__init__(OrderedDict([
-                ('max_supply', Uint64(kwargs["max_supply"])),
+                ('max_supply', Int64(kwargs["max_supply"])),
                 ('market_fee_percent', Uint16(kwargs["market_fee_percent"])),
-                ('max_market_fee', Uint64(kwargs["max_market_fee"])),
+                ('max_market_fee', Int64(kwargs["max_market_fee"])),
                 ('issuer_permissions', Uint16(kwargs["issuer_permissions"])),
                 ('flags', Uint16(kwargs["flags"])),
                 ('core_exchange_rate', Price(kwargs["core_exchange_rate"])),
                 ('whitelist_authorities',
-                    Array([ObjectId(o, "account") for o in kwargs["whitelist_authorities"]])),
+                    Array([ObjectId(x, "account") for x in kwargs["whitelist_authorities"]])),
                 ('blacklist_authorities',
-                    Array([ObjectId(o, "account") for o in kwargs["blacklist_authorities"]])),
+                    Array([ObjectId(x, "account") for x in kwargs["blacklist_authorities"]])),
                 ('whitelist_markets',
-                    Array([ObjectId(o, "asset") for o in kwargs["whitelist_markets"]])),
+                    Array([ObjectId(x, "asset") for x in kwargs["whitelist_markets"]])),
                 ('blacklist_markets',
-                    Array([ObjectId(o, "asset") for o in kwargs["blacklist_markets"]])),
+                    Array([ObjectId(x, "asset") for x in kwargs["blacklist_markets"]])),
                 ('description', String(kwargs["description"])),
                 ('extensions', Set([])),
             ]))
 
 
-class Vesting_balance_worker_initializer(GrapheneObject):
+class BitAssetOptions(GrapheneObject):
     def __init__(self, *args, **kwargs):
         if isArgsThisClass(self, args):
-            self.data = args[0].data
+                self.data = args[0].data
         else:
             if len(args) == 1 and len(kwargs) == 0:
                 kwargs = args[0]
             super().__init__(OrderedDict([
-                ('pay_vesting_period_days', Uint16(kwargs["pay_vesting_period_days"])),
+                ('feed_lifetime_sec', Uint32(kwargs["feed_lifetime_sec"])),
+                ('minimum_feeds', Uint8(kwargs["minimum_feeds"])),
+                ('force_settlement_delay_sec', Uint32(kwargs["force_settlement_delay_sec"])),
+                ('force_settlement_offset_percent', Uint16(kwargs["force_settlement_offset_percent"])),
+                ('maximum_force_settlement_volume', Uint16(kwargs["maximum_force_settlement_volume"])),
+                ('short_backing_asset', ObjectId(kwargs["short_backing_asset"], "asset")),
+                ('extensions', Set([])),
             ]))
 
 
-class Burn_worker_initializer(GrapheneObject):
-    def __init__(self, kwargs):
-        super().__init__(OrderedDict([]))
-
-
-class Refund_worker_initializer(GrapheneObject):
-    def __init__(self, kwargs):
-        super().__init__(OrderedDict([]))
-
-
 class Worker_initializer(Static_variant):
+
     def __init__(self, o):
+
+        class Burn_worker_initializer(GrapheneObject):
+            def __init__(self, kwargs):
+                super().__init__(OrderedDict([]))
+
+        class Refund_worker_initializer(GrapheneObject):
+            def __init__(self, kwargs):
+                super().__init__(OrderedDict([]))
+
+        class Vesting_balance_worker_initializer(GrapheneObject):
+            def __init__(self, *args, **kwargs):
+                if isArgsThisClass(self, args):
+                    self.data = args[0].data
+                else:
+                    if len(args) == 1 and len(kwargs) == 0:
+                        kwargs = args[0]
+                    super().__init__(OrderedDict([
+                        ('pay_vesting_period_days', Uint16(kwargs["pay_vesting_period_days"])),
+                    ]))
+
         id = o[0]
         if id == 0:
             data = Refund_worker_initializer(o[1])
@@ -266,3 +265,109 @@ class Worker_initializer(Static_variant):
         else:
             raise Exception("Unknown Worker_initializer")
         super().__init__(data, id)
+
+
+class SpecialAuthority(Static_variant):
+    def __init__(self, o):
+
+        class No_special_authority(GrapheneObject):
+            def __init__(self, kwargs):
+                super().__init__(OrderedDict([]))
+
+        class Top_holders_special_authority(GrapheneObject):
+            def __init__(self, kwargs):
+                super().__init__(OrderedDict([
+                    ('asset', ObjectId(kwargs["asset"], "asset")),
+                    ('num_top_holders', Uint8(kwargs["num_top_holders"])),
+                ]))
+
+        id = o[0]
+        if id == 0:
+            data = No_special_authority(o[1])
+        elif id == 1:
+            data = Top_holders_special_authority(o[1])
+        else:
+            raise Exception("Unknown SpecialAuthority")
+        super().__init__(data, id)
+
+
+class Extension(Array):
+    def __str__(self):
+        """ We overload the __str__ function because the json
+            representation is different for extensions
+        """
+        return json.dumps(self.json)
+
+
+class AccountCreateExtensions(Extension):
+    def __init__(self, *args, **kwargs):
+        # Extensions #################################
+        class Null_ext(GrapheneObject):
+            def __init__(self, kwargs):
+                super().__init__(OrderedDict([]))
+
+        class Owner_special_authority(SpecialAuthority):
+            def __init__(self, kwargs):
+                super().__init__(kwargs)
+
+        class Active_special_authority(SpecialAuthority):
+            def __init__(self, kwargs):
+                super().__init__(kwargs)
+
+        class Buyback_options(GrapheneObject):
+            def __init__(self, kwargs):
+                if isArgsThisClass(self, args):
+                        self.data = args[0].data
+                else:
+                    if len(args) == 1 and len(kwargs) == 0:
+                        kwargs = args[0]
+#                    assert "1.3.0" in kwargs["markets"], "CORE asset must be in 'markets' to pay fees"
+                    super().__init__(OrderedDict([
+                        ('asset_to_buy', ObjectId(kwargs["asset_to_buy"], "asset")),
+                        ('asset_to_buy_issuer', ObjectId(kwargs["asset_to_buy_issuer"], "account")),
+                        ('markets', Array([
+                            ObjectId(x, "asset") for x in kwargs["markets"]
+                        ])),
+                    ]))
+        # End of Extensions definition ################
+        if isArgsThisClass(self, args):
+            self.data = args[0].data
+        else:
+            if len(args) == 1 and len(kwargs) == 0:
+                kwargs = args[0]
+
+        self.json = dict()
+        a = []
+        sorted_options = [
+            "null_ext",
+            "owner_special_authority",
+            "active_special_authority",
+            "buyback_options"
+        ]
+        sorting = sorted(kwargs.items(), key=lambda x: sorted_options.index(x[0]))
+        for key, value in sorting:
+            self.json.update({key: value})
+            if key == "null_ext":
+                a.append(Static_variant(
+                    Null_ext({key: value}),
+                    sorted_options.index(key))
+                )
+            elif key == "owner_special_authority":
+                a.append(Static_variant(
+                    Owner_special_authority(value),
+                    sorted_options.index(key))
+                )
+            elif key == "active_special_authority":
+                a.append(Static_variant(
+                    Active_special_authority(value),
+                    sorted_options.index(key))
+                )
+            elif key == "buyback_options":
+                a.append(Static_variant(
+                    Buyback_options(value),
+                    sorted_options.index(key))
+                )
+            else:
+                raise NotImplementedError("Extension {} is unknown".format(key))
+
+        super().__init__(a)
