@@ -505,6 +505,7 @@ class BitShares(object):
         additional_active_accounts=[],
         proxy_account="proxy-to-self",
         storekeys=True,
+        extensions={},
         **kwargs
     ):
         """ Create new account on BitShares
@@ -646,7 +647,7 @@ class BitShares(object):
                         "votes": [],
                         "extensions": []
                         },
-            "extensions": {},
+            "extensions": extensions,
             "prefix": self.prefix
         }
         op = operations.Account_create(**op)
