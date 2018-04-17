@@ -1,6 +1,6 @@
 known_chains = {
     "XZEN": {
-        "chain_id": "211a582044703d192412f5cea983286d83d48e654067a0692bda8c2ef504c4ca",
+        "chain_id": "38f849426ac59934a479bd1c15395e7343d8efe13057c2a8e6607857652b557a",
         "core_symbol": "XZEN",
         "prefix": "XZEN"},
     "BTS": {
