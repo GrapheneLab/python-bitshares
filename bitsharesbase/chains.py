@@ -1,6 +1,6 @@
 known_chains = {
     "GRV": {
-        "chain_id": "1ef966f31326524b5ef5869d3fb9145ffe80f4a9e3c93d4c7b395e9f1289711b",
+        "chain_id": "f68d0db95817d62ad77fae2087c8ffd21dc482337063907d44a6ba3f30709554",
         "core_symbol": "GRV",
         "prefix": "GRV"},
     "BTS": {
