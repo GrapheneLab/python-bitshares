@@ -1,6 +1,6 @@
 known_chains = {
     "ZGV": {
-        "chain_id": "3ef3ad4542f2ea442549ca2d23a225520f073b31fbe5dbde5a7f282612fd04ef",
+        "chain_id": "24dcea1ed640431ac857890d172c0bef103803a4956c4427704cf17439a62160",
         "core_symbol": "ZGV",
         "prefix": "ZGV"},
     "BTS": {
