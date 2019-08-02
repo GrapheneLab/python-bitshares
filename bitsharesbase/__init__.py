@@ -12,5 +12,5 @@ __all__ = [
     'transactions',
 ]
 
-base58.known_prefixes.append("XZEN")
+base58.known_prefixes.append("RGT")
 

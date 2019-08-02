@@ -17,10 +17,10 @@ class Signed_Transaction(GrapheneSigned_Transaction):
     def __init__(self, *args, **kwargs):
         super(Signed_Transaction, self).__init__(*args, **kwargs)
 
-    def sign(self, wifkeys, chain="XZEN"):
+    def sign(self, wifkeys, chain="RGT"):
         return super(Signed_Transaction, self).sign(wifkeys, chain)
 
-    def verify(self, pubkeys=[], chain="XZEN"):
+    def verify(self, pubkeys=[], chain="RGT"):
         return super(Signed_Transaction, self).verify(pubkeys, chain)
 
     def getOperationKlass(self):
