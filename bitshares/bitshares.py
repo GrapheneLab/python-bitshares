@@ -175,6 +175,7 @@ class BitShares(AbstractGrapheneChain):
     def create_account(
         self,
         account_name,
+        description="",
         registrar=None,
         referrer="1.2.35641",
         referrer_percent=50,
@@ -323,6 +324,7 @@ class BitShares(AbstractGrapheneChain):
             "referrer": referrer["id"],
             "referrer_percent": int(referrer_percent * 100),
             "name": account_name,
+            "description": description,
             "owner": {
                 "account_auths": owner_accounts_authority,
                 "key_auths": owner_key_authority,

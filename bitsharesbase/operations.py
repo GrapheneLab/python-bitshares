@@ -549,6 +549,7 @@ class Account_create(GrapheneObject):
                         ("referrer", ObjectId(kwargs["referrer"], "account")),
                         ("referrer_percent", Uint16(kwargs["referrer_percent"])),
                         ("name", String(kwargs["name"])),
+                        ("description", String(kwargs["description"])),
                         ("owner", Permission(kwargs["owner"], prefix=prefix)),
                         ("active", Permission(kwargs["active"], prefix=prefix)),
                         ("options", AccountOptions(kwargs["options"], prefix=prefix)),
